@@ -1,8 +1,7 @@
-const express = require('express');
-const cors = require('cors');
-const multer = require('multer');
+const http = require('http');
 const path = require('path');
 const fs = require('fs');
+const { parse } = require('querystring');
 
 // SOLID Principle: Dependency Inversion - Service abstractions
 class FontService {
@@ -139,144 +138,215 @@ class ValidationService {
 const fontService = new FontService();
 const groupService = new GroupService();
 
-const app = express();
+const server = http.createServer((req, res) => {
+    // CORS Headers
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+    if (req.method === 'OPTIONS') {
+        res.writeHead(204);
+        res.end();
+        return;
+    }
+    const { url, method } = req;
+
+    // API Routes
+    if (url.startsWith('/api/')) {
+        if (url === '/api/fonts' && method === 'GET') {
+            try {
+                const fonts = fontService.getAllFonts();
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify(fonts));
+            } catch (error) {
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Failed to fetch fonts' }));
+            }
+        } else if (url === '/api/fonts/upload' && method === 'POST') {
+            let body = [];
+            req.on('data', (chunk) => {
+                body.push(chunk);
+            }).on('end', () => {
+                body = Buffer.concat(body);
+                // This is a simplified parser for multipart/form-data.
+                // A more robust solution would be needed for production.
+                const boundary = req.headers['content-type'].split('; ')[1].replace('boundary=', '');
+                const parts = body.toString().split(boundary).slice(1, -1);
+                const filePart = parts[0];
+                const contentDisposition = filePart.match(/Content-Disposition: form-data; name="font"; filename="(.+?)"/);
+                if (contentDisposition) {
+                    const filename = contentDisposition[1];
+                    const fileContent = filePart.split('\r\n\r\n')[1];
+                    const filePath = path.join(fontService.uploadsDir, filename);
+                    fs.writeFileSync(filePath, fileContent, 'binary');
+                    const font = {
+                        id: filename.replace('.ttf', ''),
+                        name: filename.replace('.ttf', ''),
+                        filename: filename,
+                        path: `/uploads/fonts/${filename}`
+                    };
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify(font));
+                } else {
+                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: 'Invalid file upload' }));
+                }
+            });
+        } else if (url.startsWith('/api/fonts/') && method === 'DELETE') {
+            const filename = url.split('/')[3];
+            try {
+                const success = fontService.deleteFont(filename);
+                if (success) {
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ message: 'Font deleted successfully' }));
+                } else {
+                    res.writeHead(404, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: 'Font not found' }));
+                }
+            } catch (error) {
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Failed to delete font' }));
+            }
+        } else if (url === '/api/groups' && method === 'GET') {
+            try {
+                const groups = groupService.getAllGroups();
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify(groups));
+            } catch (error) {
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Failed to fetch groups' }));
+            }
+        } else if (url === '/api/groups' && method === 'POST') {
+            let body = '';
+            req.on('data', chunk => {
+                body += chunk.toString();
+            });
+            req.on('end', () => {
+                try {
+                    const groupData = JSON.parse(body);
+                    if (!ValidationService.validateGroup(groupData)) {
+                        res.writeHead(400, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ error: 'Invalid group data. Must have title and at least 2 fonts.' }));
+                        return;
+                    }
+                    const group = groupService.createGroup(groupData);
+                    if (group) {
+                        res.writeHead(201, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify(group));
+                    } else {
+                        res.writeHead(500, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ error: 'Failed to create group' }));
+                    }
+                } catch (error) {
+                    res.writeHead(500, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: 'Failed to create group' }));
+                }
+            });
+        } else if (url.startsWith('/api/groups/') && method === 'PUT') {
+            const id = url.split('/')[3];
+            let body = '';
+            req.on('data', chunk => {
+                body += chunk.toString();
+            });
+            req.on('end', () => {
+                try {
+                    const groupData = JSON.parse(body);
+                    if (!ValidationService.validateGroup(groupData)) {
+                        res.writeHead(400, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ error: 'Invalid group data. Must have title and at least 2 fonts.' }));
+                        return;
+                    }
+                    const group = groupService.updateGroup(id, groupData);
+                    if (group) {
+                        res.writeHead(200, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify(group));
+                    } else {
+                        res.writeHead(404, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ error: 'Group not found' }));
+                    }
+                } catch (error) {
+                    res.writeHead(500, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: 'Failed to update group' }));
+                }
+            });
+        } else if (url.startsWith('/api/groups/') && method === 'DELETE') {
+            const id = url.split('/')[3];
+            try {
+                const success = groupService.deleteGroup(id);
+                if (success) {
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ message: 'Group deleted successfully' }));
+                } else {
+                    res.writeHead(404, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: 'Group not found' }));
+                }
+            } catch (error) {
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Failed to delete group' }));
+            }
+        } else {
+            res.writeHead(404, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Not Found' }));
+        }
+    } else {
+        // Static file serving
+        let filePath = path.join(__dirname, url);
+        if (url === '/') {
+            filePath = path.join(__dirname, 'client/build', 'index.html');
+        } else if (url.startsWith('/uploads/')) {
+            filePath = path.join(__dirname, url);
+        } else {
+            filePath = path.join(__dirname, 'client/build', url);
+        }
+
+        const extname = String(path.extname(filePath)).toLowerCase();
+        const mimeTypes = {
+            '.html': 'text/html',
+            '.js': 'text/javascript',
+            '.css': 'text/css',
+            '.json': 'application/json',
+            '.png': 'image/png',
+            '.jpg': 'image/jpg',
+            '.gif': 'image/gif',
+            '.svg': 'image/svg+xml',
+            '.wav': 'audio/wav',
+            '.mp4': 'video/mp4',
+            '.woff': 'application/font-woff',
+            '.ttf': 'application/font-ttf',
+            '.eot': 'application/vnd.ms-fontobject',
+            '.otf': 'application/font-otf',
+            '.wasm': 'application/wasm'
+        };
+
+        const contentType = mimeTypes[extname] || 'application/octet-stream';
+
+        fs.readFile(filePath, (error, content) => {
+            if (error) {
+                if(error.code == 'ENOENT'){
+                    // If file not found, serve index.html for client-side routing
+                    fs.readFile(path.join(__dirname, 'client/build', 'index.html'), (err, cont) => {
+                        if (err) {
+                            res.writeHead(500);
+                            res.end('Sorry, check with the site admin for error: '+err.code+' ..\n');
+                        } else {
+                            res.writeHead(200, { 'Content-Type': 'text/html' });
+                            res.end(cont, 'utf-8');
+                        }
+                    });
+                }
+                else {
+                    res.writeHead(500);
+                    res.end('Sorry, check with the site admin for error: '+error.code+' ..\n');
+                }
+            } else {
+                res.writeHead(200, { 'Content-Type': contentType });
+                res.end(content, 'utf-8');
+            }
+        });
+    }
+});
+
 const PORT = process.env.PORT || 5000;
-
-// Middleware
-app.use(cors());
-app.use(express.json());
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
-// Multer configuration for font uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, fontService.uploadsDir);
-  },
-  filename: (req, file, cb) => {
-    cb(null, file.originalname);
-  }
-});
-
-const upload = multer({
-  storage: storage,
-  fileFilter: (req, file, cb) => {
-    if (ValidationService.validateTTFFile(file)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only TTF files are allowed!'), false);
-    }
-  }
-});
-
-// SOLID Principle: Single Responsibility - Route handlers
-// Font routes
-app.get('/api/fonts', (req, res) => {
-  try {
-    const fonts = fontService.getAllFonts();
-    res.json(fonts);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch fonts' });
-  }
-});
-
-app.post('/api/fonts/upload', upload.single('font'), (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No file uploaded' });
-    }
-    
-    const font = {
-      id: req.file.filename.replace('.ttf', ''),
-      name: req.file.filename.replace('.ttf', ''),
-      filename: req.file.filename,
-      path: `/uploads/fonts/${req.file.filename}`
-    };
-    
-    res.json(font);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to upload font' });
-  }
-});
-
-app.delete('/api/fonts/:filename', (req, res) => {
-  try {
-    const success = fontService.deleteFont(req.params.filename);
-    if (success) {
-      res.json({ message: 'Font deleted successfully' });
-    } else {
-      res.status(404).json({ error: 'Font not found' });
-    }
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to delete font' });
-  }
-});
-
-// Group routes
-app.get('/api/groups', (req, res) => {
-  try {
-    const groups = groupService.getAllGroups();
-    res.json(groups);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch groups' });
-  }
-});
-
-app.post('/api/groups', (req, res) => {
-  try {
-    if (!ValidationService.validateGroup(req.body)) {
-      return res.status(400).json({ error: 'Invalid group data. Must have title and at least 2 fonts.' });
-    }
-    
-    const group = groupService.createGroup(req.body);
-    if (group) {
-      res.json(group);
-    } else {
-      res.status(500).json({ error: 'Failed to create group' });
-    }
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to create group' });
-  }
-});
-
-app.put('/api/groups/:id', (req, res) => {
-  try {
-    if (!ValidationService.validateGroup(req.body)) {
-      return res.status(400).json({ error: 'Invalid group data. Must have title and at least 2 fonts.' });
-    }
-    
-    const group = groupService.updateGroup(req.params.id, req.body);
-    if (group) {
-      res.json(group);
-    } else {
-      res.status(404).json({ error: 'Group not found' });
-    }
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to update group' });
-  }
-});
-
-app.delete('/api/groups/:id', (req, res) => {
-  try {
-    const success = groupService.deleteGroup(req.params.id);
-    if (success) {
-      res.json({ message: 'Group deleted successfully' });
-    } else {
-      res.status(404).json({ error: 'Group not found' });
-    }
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to delete group' });
-  }
-});
-
-// Serve static files from React build
-if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, 'client/build')));
-  
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'client/build', 'index.html'));
-  });
-}
-
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+server.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
 });
