@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import FontUploader from './components/FontUploader';
-import FontList from './components/FontList';
-import FontGroupCreator from './components/FontGroupCreator';
-import FontGroupsList from './components/FontGroupsList';
+import React, { useState, useEffect, useCallback } from 'react';
+import FontUploader from './components/FontUploader.jsx';
+import FontList from './components/FontList.jsx';
+import FontGroupCreator from './components/FontGroupCreator.jsx';
+import FontGroupsList from './components/FontGroupsList.jsx';
 import { fontService, groupService } from './services/api';
 
 // SOLID Principle: Single Responsibility - Main application container
@@ -13,17 +13,13 @@ function App() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
-  // Load initial data
-  useEffect(() => {
-    loadInitialData();
+  // Callback functions - declared before useEffect hooks
+  const showError = useCallback((message) => {
+    setError(message);
+    setTimeout(() => setError(''), 5000); // Clear error after 5 seconds
   }, []);
 
-  // Load fonts dynamically
-  useEffect(() => {
-    loadFontsIntoDOM();
-  }, [fonts]);
-
-  const loadInitialData = async () => {
+  const loadInitialData = useCallback(async () => {
     try {
       setLoading(true);
       const [fontsData, groupsData] = await Promise.all([
@@ -38,9 +34,9 @@ function App() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [showError]);
 
-  const loadFontsIntoDOM = () => {
+  const loadFontsIntoDOM = useCallback(() => {
     const newLoadedFonts = [];
     
     fonts.forEach(font => {
@@ -63,12 +59,16 @@ function App() {
         console.error(`Failed to load font ${font.name}:`, error);
       });
     });
-  };
+  }, [fonts, loadedFonts]);
 
-  const showError = (message) => {
-    setError(message);
-    setTimeout(() => setError(''), 5000); // Clear error after 5 seconds
-  };
+  // Effects - now declared after the callback functions
+  useEffect(() => {
+    loadInitialData();
+  }, [loadInitialData]);
+
+  useEffect(() => {
+    loadFontsIntoDOM();
+  }, [loadFontsIntoDOM]);
 
   // Font handlers
   const handleFontUpload = async (file) => {
