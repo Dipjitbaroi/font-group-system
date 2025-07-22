@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 
-const FontList = ({ fonts, onDeleteFont, loadedFonts, fontMetadata, fontCharacteristics }) => {
+const FontList = ({ fonts, onDeleteFont, loadedFonts, fontMetadata }) => {
   const [deletingFont, setDeletingFont] = useState(null);
 
   const handleDelete = async (font) => {
@@ -14,242 +14,220 @@ const FontList = ({ fonts, onDeleteFont, loadedFonts, fontMetadata, fontCharacte
     }
   };
 
-  // ✅ FIXED: Dynamic Font Preview with Proper Key Matching
-  const DynamicFontPreview = ({ font }) => {
+  // ✅ CLEAN: Package-based font preview component
+  const PackageBasedPreview = ({ font }) => {
     const [isVisible, setIsVisible] = useState(false);
     const [renderKey, setRenderKey] = useState(0);
     const previewRef = useRef(null);
     
-    // ✅ FIXED: Find font characteristics with proper matching
-    const findFontCharacteristics = () => {
-      // Get the font filename without extension for matching
-      const fontFileName = font.filename.replace(/\.(ttf|otf|woff|woff2)$/i, '');
+    // ✅ SIMPLE: Find font data using package results
+    const findFontData = () => {
+      const metadataKeys = Object.keys(fontMetadata);
       
-      // Look for exact fontId match first
-      const fontKeys = Object.keys(fontCharacteristics);
+      console.log(`🔍 Looking for font data for "${font.name}"`);
+      console.log(`Available metadata keys:`, metadataKeys);
       
-      // Try multiple matching strategies
-      let matchingKey = null;
-      
-      // Strategy 1: Direct filename match in key
-      matchingKey = fontKeys.find(key => {
-        const keyFamily = key.split('-')[0];
-        return keyFamily.toLowerCase().replace(/[^a-z]/g, '') === 
-               fontFileName.toLowerCase().replace(/[^a-z]/g, '');
+      // Strategy 1: Direct family name match
+      let matchingKey = metadataKeys.find(key => {
+        const keyFamily = key.split('-')[0].toLowerCase();
+        const fontNameClean = font.name.toLowerCase().replace(/[^a-z]/g, '');
+        return keyFamily.replace(/[^a-z]/g, '') === fontNameClean ||
+               keyFamily.includes(fontNameClean.substring(0, 8)) ||
+               fontNameClean.includes(keyFamily.substring(0, 8));
       });
       
-      // Strategy 2: Font name match
+      // Strategy 2: Filename match
       if (!matchingKey) {
-        matchingKey = fontKeys.find(key => {
-          const keyFamily = key.split('-')[0];
-          return keyFamily.toLowerCase().replace(/[^a-z]/g, '') === 
-                 font.name.toLowerCase().replace(/[^a-z]/g, '');
+        const filenameClean = font.filename.toLowerCase().replace(/[^a-z]/g, '');
+        matchingKey = metadataKeys.find(key => {
+          const keyFamily = key.split('-')[0].toLowerCase().replace(/[^a-z]/g, '');
+          return keyFamily.includes(filenameClean.substring(0, 8)) ||
+                 filenameClean.includes(keyFamily.substring(0, 8));
         });
       }
       
-      // Strategy 3: Partial match
-      if (!matchingKey) {
-        const cleanFontName = font.name.toLowerCase().replace(/[^a-z]/g, '');
-        matchingKey = fontKeys.find(key => {
-          const keyLower = key.toLowerCase().replace(/[^a-z]/g, '');
-          return keyLower.includes(cleanFontName.substring(0, 8)) || 
-                 cleanFontName.includes(keyLower.substring(0, 8));
-        });
+      console.log(`Found matching key: ${matchingKey || 'NONE - using fallback'}`);
+      
+      if (matchingKey && fontMetadata[matchingKey]) {
+        const data = fontMetadata[matchingKey];
+        console.log(`Font data found:`, data);
+        return data;
       }
       
-      console.log(`🔍 Font matching for "${font.name}":`);;
-      console.log(`   Available keys: [${fontKeys.join(', ')}]`);
-      console.log(`   Found match: ${matchingKey || 'NONE'}`);
-      
-      if (matchingKey) {
-        return fontCharacteristics[matchingKey];
-      }
-      
-      // Fallback characteristics
-      console.log(`⚠️  Using fallback for ${font.name}`);
+      // Enhanced fallback
       const name = font.name.toLowerCase();
-      return {
-        familyName: font.name.replace(/[_-]/g, ' ').replace(/\.(ttf|otf)$/i, ''),
-        weight: name.includes('bold') ? 700 : name.includes('light') ? 300 : 400,
-        style: name.includes('italic') ? 'italic' : 'normal',
-        isSerif: name.includes('serif') || name.includes('playfair') || name.includes('times'),
-        isMonospace: name.includes('mono') || name.includes('code') || name.includes('courier')
+      const filename = font.filename.toLowerCase();
+      const combined = `${name} ${filename}`;
+      
+      const fallbackData = {
+        familyName: font.name
+          .replace(/[-_](regular|normal|book)/gi, '')
+          .replace(/[-_](thin|light|medium|semibold|bold|extrabold|black)/gi, '')
+          .replace(/[-_](italic|oblique)/gi, '')
+          .replace(/\.(ttf|otf)$/gi, '')
+          .replace(/[-_]/g, ' ')
+          .trim(),
+        weight: combined.includes('bold') ? 700 : 
+                combined.includes('light') ? 300 : 400,
+        style: combined.includes('italic') ? 'italic' : 'normal',
+        isMonospace: /mono|code|courier|console|terminal|source.?code|fira.?code/.test(combined),
+        isSerif: /serif|times|georgia|garamond|baskerville|playfair|crimson|merriweather/.test(combined)
       };
+      
+      console.log(`Using fallback data:`, fallbackData);
+      return fallbackData;
     };
 
-    const characteristics = findFontCharacteristics();
-    const fontFamily = characteristics.familyName;
-    const fontId = `${fontFamily}-${characteristics.weight}-${characteristics.style}`;
+    const fontData = findFontData();
+    const fontFamily = fontData.familyName;
+    const fontId = `${fontFamily}-${fontData.weight}-${fontData.style}`;
     
-    // ✅ FIXED: Check if font is actually loaded
+    // Check if font is loaded
     const isLoaded = loadedFonts.includes(fontId) || 
                      loadedFonts.some(loadedId => {
                        const loadedFamily = loadedId.split('-')[0];
-                       return loadedFamily === fontFamily;
+                       return loadedFamily.toLowerCase() === fontFamily.toLowerCase();
                      });
-    
-    console.log(`🎯 Font "${font.name}" -> Family: "${fontFamily}" -> Loaded: ${isLoaded}`);
-    console.log(`   Looking for fontId: "${fontId}"`);
-    console.log(`   Available loadedFonts: [${loadedFonts.join(', ')}]`);
+                     
+    console.log(`Font loading check for "${font.name}":`);                
+    console.log(`  Expected fontId: "${fontId}"`);
+    console.log(`  Loaded fonts: [${loadedFonts.join(', ')}]`);
+    console.log(`  Is loaded: ${isLoaded}`);
 
+    // Auto-load font if not loaded
+    useEffect(() => {
+      if (!isLoaded && font && font.path && fontFamily) {
+        const fontUrl = font.path.startsWith('http')
+          ? font.path
+          : `${window.location.origin}${font.path.startsWith('/') ? '' : '/'}${font.path}`;
+        try {
+          const fontFace = new window.FontFace(
+            fontFamily,
+            `url("${fontUrl}")`,
+            {
+              weight: fontData.weight ? fontData.weight.toString() : '400',
+              style: fontData.style || 'normal',
+              display: 'swap'
+            }
+          );
+          fontFace.load().then(loadedFace => {
+            document.fonts.add(loadedFace);
+            setRenderKey(prev => prev + 1); // force re-render
+          });
+        } catch (e) {
+          console.error('FontFace load error:', e);
+        }
+      }
+      // eslint-disable-next-line
+    }, [isLoaded, font, fontFamily, fontData.weight, fontData.style]);
     // Update visibility when font loads
     useEffect(() => {
       if (isLoaded) {
         const timer = setTimeout(() => {
           setIsVisible(true);
           setRenderKey(prev => prev + 1);
-        }, 100); // ✅ REDUCED: Faster visibility (was 400ms)
+        }, 200);
         return () => clearTimeout(timer);
       } else {
         setIsVisible(false);
       }
     }, [isLoaded]);
 
-    // ✅ ENHANCED: Dynamic styling based on font characteristics
-    const getPreviewStyle = () => {
-      const baseStyle = {
-        fontSize: '22px',
-        lineHeight: '1.2',
-        minHeight: '32px',
-        display: 'block',
-        transition: 'all 0.5s ease-in-out',
-        letterSpacing: characteristics.isMonospace ? '0.05em' : '0.01em'
-      };
-
+    // ✅ CLEAN: Dynamic styling using package data
+    const getPackageBasedStyle = () => {
       if (!isLoaded || !isVisible) {
         return {
-          ...baseStyle,
-          fontFamily: 'system-ui, -apple-system, sans-serif',
+          fontFamily: 'system-ui, sans-serif',
+          fontSize: '18px',
           fontWeight: 'normal',
           fontStyle: 'italic',
           color: '#9ca3af',
-          fontSize: '18px'
+          lineHeight: '1.3'
         };
       }
 
-      // Apply real font characteristics
+      // Use package-detected characteristics
       return {
-        ...baseStyle,
-        fontFamily: `"${fontFamily}", ${getFallbackFontStack()}`,
-        fontWeight: characteristics.weight || 400,
-        fontStyle: characteristics.style || 'normal',
+        fontFamily: `"${fontFamily}", ${getFallbackStack(fontData)}`,
+        fontSize: getFontSize(fontData),
+        fontWeight: fontData.weight || 400,
+        fontStyle: fontData.style || 'normal',
         color: '#111827',
-        // Enhanced styling for different font types
-        ...(characteristics.isSerif && {
-          letterSpacing: '0.02em',
-          fontSize: '24px'
-        }),
-        ...(characteristics.isMonospace && {
-          letterSpacing: '0.05em',
-          fontSize: '20px',
-          fontFeatureSettings: '"liga" 0' // Disable ligatures for code fonts
-        })
+        lineHeight: '1.3',
+        letterSpacing: fontData.isMonospace ? '0.05em' : '0.01em',
+        fontFeatureSettings: fontData.isMonospace ? '"liga" 0' : 'normal'
       };
     };
 
-    // Get appropriate fallback font stack
-    const getFallbackFontStack = () => {
-      if (characteristics.isMonospace) {
-        return '"SF Mono", "Monaco", "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace';
-      } else if (characteristics.isSerif) {
-        return '"Times New Roman", "Georgia", "Garamond", serif';
-      } else {
-        return 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-      }
+    // ✅ SIMPLE: Fallback font stacks
+    const getFallbackStack = (fontData) => {
+      if (fontData.isMonospace) return 'Consolas, "Courier New", monospace';
+      if (fontData.isSerif) return 'Times, serif';
+      return 'Arial, sans-serif';
     };
 
-    // ✅ ENHANCED: Show progressive loading states
-    const getLoadingState = () => {
-      // Check if font is in any stage of loading
-      const fontKeys = Object.keys(fontCharacteristics);
-      const hasCharacteristics = fontKeys.some(key => 
-        key.includes(font.name.replace(/[^a-zA-Z0-9]/g, '')) ||
-        key.toLowerCase().includes(font.name.toLowerCase().replace(/[^a-z]/g, ''))
-      );
-      
-      if (isLoaded && isVisible) return 'loaded';
-      if (isLoaded && !isVisible) return 'rendering';
-      if (hasCharacteristics) return 'applying';
-      return 'loading';
+    // ✅ SIMPLE: Font size based on type
+    const getFontSize = (fontData) => {
+      if (fontData.weight >= 700) return '24px';
+      if (fontData.isMonospace) return '20px';
+      return '22px';
     };
 
-    const loadingState = getLoadingState();
-
-    // Enhanced preview text based on loading state
+    // ✅ CLEAN: Smart preview text using package data
     const getPreviewText = () => {
-      switch (loadingState) {
-        case 'loaded':
-          if (characteristics.isMonospace) return 'Code Example { }';
-          if (characteristics.isSerif) return 'Elegant Typography';
-          if (characteristics.weight >= 700) return 'Bold Example Style';
-          if (characteristics.style === 'italic') return 'Italic Example Style';
-          return 'Example Style';
-        case 'rendering':
-          return 'Applying font...';
-        case 'applying':
-          return 'Loading font...';
-        default:
-          return 'Preparing font...';
-      }
+      if (!isLoaded || !isVisible) return 'Loading font...';
+      
+      if (fontData.isMonospace) return 'console.log("Code");';
+      if (fontData.isSerif) return 'Elegant Typography';
+      if (fontData.weight >= 700) return 'Bold Example Style';
+      if (fontData.style === 'italic') return 'Italic Example Style';
+      return 'Example Style';
     };
 
-    // ✅ ENHANCED: Progressive loading indicator
+    // ✅ SIMPLE: Loading indicator
     const LoadingIndicator = () => {
-      if (loadingState === 'loaded') return null;
-      
-      const getLoadingMessage = () => {
-        switch (loadingState) {
-          case 'rendering': return 'Almost ready...';
-          case 'applying': return 'Applying font...';
-          default: return 'Loading font...';
-        }
-      };
+      if (isLoaded && isVisible) return null;
       
       return (
         <div className="flex items-center space-x-2 text-sm text-gray-500 mt-1">
           <div className="animate-spin rounded-full h-3 w-3 border border-gray-300 border-t-blue-500"></div>
-          <span>{getLoadingMessage()}</span>
+          <span>{isLoaded ? 'Rendering...' : 'Loading...'}</span>
         </div>
       );
     };
 
-    // Font information display
+    // ✅ CLEAN: Font info using package data
     const FontInfo = () => {
-      if (!isVisible || !characteristics) return null;
+      if (!isVisible) return null;
       
       const getTypeInfo = () => {
         const types = [];
-        if (characteristics.isSerif) types.push('Serif');
-        if (characteristics.isMonospace) types.push('Monospace');
-        if (!characteristics.isSerif && !characteristics.isMonospace) types.push('Sans-serif');
-        return types.join(', ');
+        if (fontData.isSerif) types.push('Serif');
+        if (fontData.isMonospace) types.push('Monospace');
+        if (types.length === 0) types.push('Sans-serif');
+        return types.join(' + ');
       };
-
+      
       return (
-        <div className="mt-1 text-xs text-gray-500 space-y-1">
-          <div>{fontFamily}</div>
-          <div>
-            {getTypeInfo()} • Weight: {characteristics.weight} • Style: {characteristics.style}
-          </div>
+        <div className="mt-1 text-xs text-gray-500">
+          <div className="font-medium">{fontFamily}</div>
+          <div>{getTypeInfo()} • Weight: {fontData.weight} • Style: {fontData.style}</div>
         </div>
       );
     };
 
     return (
-      <div className="font-preview-container">
+      <div className="package-based-preview-container">
         <div 
           ref={previewRef}
           key={renderKey}
-          style={getPreviewStyle()}
-          className="font-preview-text"
+          style={getPackageBasedStyle()}
+          className="package-based-preview-text"
         >
           {getPreviewText()}
         </div>
         
-        {/* Progressive loading indicator */}
         <LoadingIndicator />
-        
-        {/* Font information */}
         <FontInfo />
       </div>
     );
@@ -258,8 +236,8 @@ const FontList = ({ fonts, onDeleteFont, loadedFonts, fontMetadata, fontCharacte
   if (fonts.length === 0) {
     return (
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
-        <h2 className="text-2xl font-bold text-gray-800 mb-2">Our Fonts</h2>
-        <p className="text-gray-600 mb-6">Browse a list of fonts to build your font group.</p>
+        <h2 className="text-2xl font-bold text-gray-800 mb-2">Package-Based Font Library</h2>
+        <p className="text-gray-600 mb-6">Upload fonts - packages automatically detect and apply styling</p>
         
         <div className="text-center py-12">
           <svg
@@ -275,7 +253,7 @@ const FontList = ({ fonts, onDeleteFont, loadedFonts, fontMetadata, fontCharacte
               d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
             />
           </svg>
-          <p className="text-gray-500">No fonts uploaded yet. Upload your first TTF font above.</p>
+          <p className="text-gray-500">No fonts uploaded yet. Upload any TTF font!</p>
         </div>
       </div>
     );
@@ -283,8 +261,8 @@ const FontList = ({ fonts, onDeleteFont, loadedFonts, fontMetadata, fontCharacte
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
-      <h2 className="text-2xl font-bold text-gray-800 mb-2">Our Fonts</h2>
-      <p className="text-gray-600 mb-6">Browse a list of fonts to build your font group.</p>
+      <h2 className="text-2xl font-bold text-gray-800 mb-2">Package-Based Font Library</h2>
+      <p className="text-gray-600 mb-6">Clean, package-driven font detection and preview</p>
       
       <div className="overflow-x-auto">
         <table className="w-full">
@@ -294,7 +272,7 @@ const FontList = ({ fonts, onDeleteFont, loadedFonts, fontMetadata, fontCharacte
                 Font Name
               </th>
               <th className="text-left py-3 px-4 font-semibold text-gray-700 uppercase tracking-wider text-sm">
-                Preview
+                Auto Preview
               </th>
               <th className="text-right py-3 px-4 font-semibold text-gray-700 uppercase tracking-wider text-sm">
                 Action
@@ -310,8 +288,8 @@ const FontList = ({ fonts, onDeleteFont, loadedFonts, fontMetadata, fontCharacte
                     <span className="text-gray-500 text-sm">{font.filename}</span>
                   </div>
                 </td>
-                <td className="py-4 px-4 min-w-[400px]">
-                  <DynamicFontPreview font={font} />
+                <td className="py-4 px-4 min-w-[350px]">
+                  <PackageBasedPreview font={font} />
                 </td>
                 <td className="py-4 px-4 text-right">
                   <button
