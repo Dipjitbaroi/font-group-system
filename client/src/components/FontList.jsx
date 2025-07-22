@@ -14,11 +14,25 @@ const FontList = ({ fonts, onDeleteFont, loadedFonts, fontMetadata }) => {
     }
   };
 
-  // ✅ CLEAN: Package-based font preview component
+  // ✅ FIXED: Package-based font preview component with proper loading management
   const PackageBasedPreview = ({ font }) => {
     const [isVisible, setIsVisible] = useState(false);
     const [renderKey, setRenderKey] = useState(0);
+    const [isLoadingFont, setIsLoadingFont] = useState(false);
+    const [loadError, setLoadError] = useState(null);
     const previewRef = useRef(null);
+    const loadingAttemptRef = useRef(null);
+    const isMountedRef = useRef(true);
+    
+    // ✅ FIXED: Cleanup on unmount
+    useEffect(() => {
+      return () => {
+        isMountedRef.current = false;
+        if (loadingAttemptRef.current) {
+          loadingAttemptRef.current = null;
+        }
+      };
+    }, []);
     
     // ✅ SIMPLE: Find font data using package results
     const findFontData = () => {
@@ -82,7 +96,7 @@ const FontList = ({ fonts, onDeleteFont, loadedFonts, fontMetadata }) => {
     const fontFamily = fontData.familyName;
     const fontId = `${fontFamily}-${fontData.weight}-${fontData.style}`;
     
-    // Check if font is loaded
+    // ✅ FIXED: Check if font is loaded (prevent duplicate loading)
     const isLoaded = loadedFonts.includes(fontId) || 
                      loadedFonts.some(loadedId => {
                        const loadedFamily = loadedId.split('-')[0];
@@ -94,48 +108,99 @@ const FontList = ({ fonts, onDeleteFont, loadedFonts, fontMetadata }) => {
     console.log(`  Loaded fonts: [${loadedFonts.join(', ')}]`);
     console.log(`  Is loaded: ${isLoaded}`);
 
-    // Auto-load font if not loaded
+    // ✅ FIXED: Auto-load font with proper error handling and duplicate prevention
     useEffect(() => {
-      if (!isLoaded && font && font.path && fontFamily) {
-        const fontUrl = font.path.startsWith('http')
-          ? font.path
-          : `${window.location.origin}${font.path.startsWith('/') ? '' : '/'}${font.path}`;
-        try {
-          const fontFace = new window.FontFace(
-            fontFamily,
-            `url("${fontUrl}")`,
-            {
-              weight: fontData.weight ? fontData.weight.toString() : '400',
-              style: fontData.style || 'normal',
-              display: 'swap'
+      if (!isLoaded && font && font.path && fontFamily && !isLoadingFont && !loadingAttemptRef.current) {
+        const loadFont = async () => {
+          if (!isMountedRef.current) return;
+          
+          setIsLoadingFont(true);
+          setLoadError(null);
+          loadingAttemptRef.current = font.path;
+          
+          try {
+            // ✅ FIXED: Check if font is already in document.fonts before creating new FontFace
+            const existingFont = Array.from(document.fonts).find(fontFace => 
+              fontFace.family === fontFamily && 
+              fontFace.weight === fontData.weight.toString() && 
+              fontFace.style === fontData.style
+            );
+            
+            if (existingFont) {
+              console.log(`✅ Font already exists in document.fonts: ${fontFamily}`);
+              if (isMountedRef.current) {
+                setIsLoadingFont(false);
+                setRenderKey(prev => prev + 1);
+              }
+              return;
             }
-          );
-          fontFace.load().then(loadedFace => {
-            document.fonts.add(loadedFace);
-            setRenderKey(prev => prev + 1); // force re-render
-          });
-        } catch (e) {
-          console.error('FontFace load error:', e);
-        }
+
+            const fontUrl = font.path.startsWith('http')
+              ? font.path
+              : `${window.location.origin}${font.path.startsWith('/') ? '' : '/'}${font.path}`;
+            
+            console.log(`🚀 Loading font via FontFace: ${fontFamily} from ${fontUrl}`);
+            
+            const fontFace = new window.FontFace(
+              fontFamily,
+              `url("${fontUrl}")`,
+              {
+                weight: fontData.weight ? fontData.weight.toString() : '400',
+                style: fontData.style || 'normal',
+                display: 'swap'
+              }
+            );
+            
+            // ✅ FIXED: Add timeout to prevent hanging network requests
+            const loadPromise = fontFace.load();
+            const timeoutPromise = new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Font load timeout')), 5000)
+            );
+            
+            const loadedFace = await Promise.race([loadPromise, timeoutPromise]);
+            
+            if (isMountedRef.current && loadingAttemptRef.current === font.path) {
+              document.fonts.add(loadedFace);
+              console.log(`✅ Font loaded successfully: ${fontFamily}`);
+              setRenderKey(prev => prev + 1);
+            }
+            
+          } catch (error) {
+            console.warn(`⚠️ Font loading failed for ${fontFamily}:`, error.message);
+            if (isMountedRef.current && loadingAttemptRef.current === font.path) {
+              setLoadError(error.message);
+            }
+          } finally {
+            if (isMountedRef.current && loadingAttemptRef.current === font.path) {
+              setIsLoadingFont(false);
+              loadingAttemptRef.current = null;
+            }
+          }
+        };
+
+        loadFont();
       }
       // eslint-disable-next-line
-    }, [isLoaded, font, fontFamily, fontData.weight, fontData.style]);
-    // Update visibility when font loads
+    }, [isLoaded, font?.path, fontFamily, fontData.weight, fontData.style, isLoadingFont]);
+
+    // ✅ FIXED: Update visibility when font loads with debouncing
     useEffect(() => {
-      if (isLoaded) {
+      if (isLoaded && !isLoadingFont) {
         const timer = setTimeout(() => {
-          setIsVisible(true);
-          setRenderKey(prev => prev + 1);
+          if (isMountedRef.current) {
+            setIsVisible(true);
+            setRenderKey(prev => prev + 1);
+          }
         }, 200);
         return () => clearTimeout(timer);
       } else {
         setIsVisible(false);
       }
-    }, [isLoaded]);
+    }, [isLoaded, isLoadingFont]);
 
     // ✅ CLEAN: Dynamic styling using package data
     const getPackageBasedStyle = () => {
-      if (!isLoaded || !isVisible) {
+      if (!isLoaded || !isVisible || isLoadingFont) {
         return {
           fontFamily: 'system-ui, sans-serif',
           fontSize: '18px',
@@ -175,7 +240,9 @@ const FontList = ({ fonts, onDeleteFont, loadedFonts, fontMetadata }) => {
 
     // ✅ CLEAN: Smart preview text using package data
     const getPreviewText = () => {
-      if (!isLoaded || !isVisible) return 'Loading font...';
+      if (isLoadingFont) return 'Loading font...';
+      if (loadError) return 'Loading failed';
+      if (!isLoaded || !isVisible) return 'Preparing...';
       
       if (fontData.isMonospace) return 'console.log("Code");';
       if (fontData.isSerif) return 'Elegant Typography';
@@ -184,21 +251,35 @@ const FontList = ({ fonts, onDeleteFont, loadedFonts, fontMetadata }) => {
       return 'Example Style';
     };
 
-    // ✅ SIMPLE: Loading indicator
+    // ✅ FIXED: Loading indicator with better states
     const LoadingIndicator = () => {
-      if (isLoaded && isVisible) return null;
+      if (isLoaded && isVisible && !isLoadingFont) return null;
+      
+      let message = 'Loading...';
+      let showSpinner = true;
+      
+      if (loadError) {
+        message = 'Load failed';
+        showSpinner = false;
+      } else if (isLoadingFont) {
+        message = 'Loading font...';
+      } else if (isLoaded) {
+        message = 'Rendering...';
+      }
       
       return (
         <div className="flex items-center space-x-2 text-sm text-gray-500 mt-1">
-          <div className="animate-spin rounded-full h-3 w-3 border border-gray-300 border-t-blue-500"></div>
-          <span>{isLoaded ? 'Rendering...' : 'Loading...'}</span>
+          {showSpinner && (
+            <div className="animate-spin rounded-full h-3 w-3 border border-gray-300 border-t-blue-500"></div>
+          )}
+          <span className={loadError ? 'text-red-500' : ''}>{message}</span>
         </div>
       );
     };
 
     // ✅ CLEAN: Font info using package data
     const FontInfo = () => {
-      if (!isVisible) return null;
+      if (!isVisible || isLoadingFont) return null;
       
       const getTypeInfo = () => {
         const types = [];
