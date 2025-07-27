@@ -1,15 +1,11 @@
 {
-  "name": "font-group-system",
+  "name": "font-group-system-server",
   "version": "1.0.0",
   "description": "A system to create and manage font groups",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "concurrently \"npm run server\" \"npm run client\"",
-    "server": "nodemon server.js",
-    "client": "cd client && npm start",
-    "build": "cd client && npm run build",
-    "install-client": "cd client && npm install"
+    "dev": "nodemon server.js"
   },
   "dependencies": {
     "path": "^0.12.7",
