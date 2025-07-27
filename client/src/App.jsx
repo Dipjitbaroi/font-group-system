@@ -5,7 +5,6 @@ import FontGroupCreator from './components/FontGroupCreator.jsx';
 import FontGroupsList from './components/FontGroupsList.jsx';
 import { fontService, groupService } from './services/api';
 
-// SOLID Principle: Single Responsibility - Main application container
 function App() {
   const [fonts, setFonts] = useState([]);
   const [groups, setGroups] = useState([]);
@@ -13,10 +12,9 @@ function App() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
-  // Callback functions - declared before useEffect hooks
   const showError = useCallback((message) => {
     setError(message);
-    setTimeout(() => setError(''), 5000); // Clear error after 5 seconds
+    setTimeout(() => setError(''), 5000);
   }, []);
 
   const loadInitialData = useCallback(async () => {
@@ -26,7 +24,6 @@ function App() {
         fontService.getAllFonts(),
         groupService.getAllGroups()
       ]);
-      
       setFonts(fontsData);
       setGroups(groupsData);
     } catch (error) {
@@ -36,32 +33,33 @@ function App() {
     }
   }, [showError]);
 
-  const loadFontsIntoDOM = useCallback(() => {
-    const newLoadedFonts = [];
-    
-    fonts.forEach(font => {
+  const loadFontsIntoDOM = useCallback(async () => {
+    const fontPromises = fonts.map(async (font) => {
       const fontFamily = font.name.replace(/\s+/g, '');
       
-      // Check if font is already loaded
-      if (loadedFonts.includes(fontFamily)) {
-        newLoadedFonts.push(fontFamily);
-        return;
-      }
 
-      // Create font face
-      const fontFace = new FontFace(fontFamily, `url(http://localhost:5000${font.path})`);
-      
-      fontFace.load().then(() => {
+      if (loadedFonts.includes(fontFamily)) return null;
+      console.log("Font----:", `url(http://localhost:5000${font.path})`);
+      try {
+        const fontFace = new FontFace(fontFamily, `url(http://localhost:5000${font.path})`);
+        await fontFace.load();
         document.fonts.add(fontFace);
-        newLoadedFonts.push(fontFamily);
-        setLoadedFonts(prev => [...prev, fontFamily]);
-      }).catch(error => {
+        return fontFamily;
+      } catch (error) {
         console.error(`Failed to load font ${font.name}:`, error);
-      });
+        return null;
+      }
     });
+
+    const loaded = await Promise.all(fontPromises);
+    console.log("Loaded Fonts:", loaded);
+    const newlyLoaded = loaded.filter(Boolean).filter(name => !loadedFonts.includes(name));
+    console.log("Newly Loaded Fonts:", newlyLoaded);
+    if (newlyLoaded.length > 0) {
+      setLoadedFonts((prev) => [...prev, ...newlyLoaded]);
+    }
   }, [fonts, loadedFonts]);
 
-  // Effects - now declared after the callback functions
   useEffect(() => {
     loadInitialData();
   }, [loadInitialData]);
@@ -70,10 +68,9 @@ function App() {
     loadFontsIntoDOM();
   }, [loadFontsIntoDOM]);
 
-  // Font handlers
-  const handleFontUpload = async (file) => {
+  const handleFontUpload = async (file, metadata) => {
     try {
-      const uploadedFont = await fontService.uploadFont(file);
+      const uploadedFont = await fontService.uploadFont(file, metadata);
       setFonts(prev => [...prev, uploadedFont]);
       return uploadedFont;
     } catch (error) {
@@ -85,8 +82,6 @@ function App() {
     try {
       await fontService.deleteFont(filename);
       setFonts(prev => prev.filter(font => font.filename !== filename));
-      
-      // Remove from loaded fonts
       const fontToRemove = fonts.find(font => font.filename === filename);
       if (fontToRemove) {
         const fontFamily = fontToRemove.name.replace(/\s+/g, '');
@@ -97,7 +92,6 @@ function App() {
     }
   };
 
-  // Group handlers
   const handleGroupCreate = async (groupData) => {
     try {
       const createdGroup = await groupService.createGroup(groupData);
@@ -111,7 +105,7 @@ function App() {
   const handleGroupEdit = async (groupId, groupData) => {
     try {
       const updatedGroup = await groupService.updateGroup(groupId, groupData);
-      setGroups(prev => prev.map(group => 
+      setGroups(prev => prev.map(group =>
         group.id === groupId ? updatedGroup : group
       ));
       return updatedGroup;
@@ -142,7 +136,6 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <h1 className="text-3xl font-bold text-gray-900">Font Group System</h1>
@@ -150,7 +143,6 @@ function App() {
         </div>
       </header>
 
-      {/* Error Message */}
       {error && (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
@@ -164,29 +156,21 @@ function App() {
         </div>
       )}
 
-      {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-        {/* Font Upload Section */}
         <FontUploader
           onFontUploaded={handleFontUpload}
           onError={showError}
         />
-
-        {/* Font List Section */}
         <FontList
           fonts={fonts}
           loadedFonts={loadedFonts}
           onDeleteFont={handleFontDelete}
         />
-
-        {/* Font Group Creator Section */}
         <FontGroupCreator
           fonts={fonts}
           onCreateGroup={handleGroupCreate}
           onError={showError}
         />
-
-        {/* Font Groups List Section */}
         <FontGroupsList
           groups={groups}
           fonts={fonts}
@@ -196,11 +180,10 @@ function App() {
         />
       </main>
 
-      {/* Footer */}
       <footer className="bg-white border-t border-gray-200 mt-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <p className="text-center text-gray-500 text-sm">
-            Font Group System - Built with React.js and Node.js following SOLID principles
+            Font Group System – Built with React.js and Node.js following SOLID principles
           </p>
         </div>
       </footer>

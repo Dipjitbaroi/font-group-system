@@ -49,9 +49,14 @@ class ApiService {
     return this.request(endpoint, { method: 'DELETE' });
   }
 
-  async uploadFile(endpoint, file) {
+  async uploadFile(endpoint, file, metadata = null) {
     const formData = new FormData();
     formData.append('font', file);
+    
+    // Add metadata if provided
+    if (metadata) {
+      formData.append('metadata', JSON.stringify(metadata));
+    }
 
     return this.request(endpoint, {
       method: 'POST',
@@ -67,8 +72,8 @@ class FontService extends ApiService {
     return this.get('/fonts');
   }
 
-  async uploadFont(file) {
-    return this.uploadFile('/fonts/upload', file);
+  async uploadFont(file, metadata = null) {
+    return this.uploadFile('/fonts/upload', file, metadata);
   }
 
   async deleteFont(filename) {
