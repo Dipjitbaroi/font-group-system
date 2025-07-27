@@ -188,6 +188,56 @@ class ValidationService {
            Array.isArray(group.fonts) && 
            group.fonts.length >= 2;
   }
+
+  static validateFontFileContent(fileContent, filename) {
+    try {
+      // Check file size
+      if (fileContent.length < 1024) {
+        return { isValid: false, error: 'File too small to be a valid font' };
+      }
+
+      if (fileContent.length > 10 * 1024 * 1024) {
+        return { isValid: false, error: 'File size exceeds 10MB limit' };
+      }
+
+      // Check file extension
+      const validExtensions = ['.ttf', '.otf'];
+      const hasValidExtension = validExtensions.some(ext => 
+        filename.toLowerCase().endsWith(ext)
+      );
+
+      if (!hasValidExtension) {
+        return { isValid: false, error: 'Invalid file extension. Only TTF and OTF files are allowed' };
+      }
+
+      // Check magic bytes for TTF/OTF signature
+      const buffer = Buffer.from(fileContent, 'binary');
+      
+      // TTF signature: 0x00010000
+      if (buffer.length >= 4) {
+        const signature = buffer.readUInt32BE(0);
+        if (signature === 0x00010000) {
+          return { isValid: true, type: 'TTF' };
+        }
+
+        // OTF signature: 'OTTO'
+        const ottoSignature = buffer.toString('ascii', 0, 4);
+        if (ottoSignature === 'OTTO') {
+          return { isValid: true, type: 'OTF' };
+        }
+      }
+
+      // If we get here, the file doesn't have a valid font signature
+      const firstFourBytes = buffer.slice(0, 4).toString('hex');
+      return { 
+        isValid: false, 
+        error: `Invalid font file signature. Expected TTF (00010000) or OTF (4F54544F), got: ${firstFourBytes}` 
+      };
+
+    } catch (error) {
+      return { isValid: false, error: `File validation error: ${error.message}` };
+    }
+  }
 }
 
 // Initialize services
@@ -255,11 +305,28 @@ const server = http.createServer((req, res) => {
                     }
                     
                     if (filename && fileContent) {
+                        // Server-side validation
+                        const validationResult = ValidationService.validateFontFileContent(fileContent, filename);
+                        
+                        if (!validationResult.isValid) {
+                            res.writeHead(400, { 'Content-Type': 'application/json' });
+                            res.end(JSON.stringify({ 
+                                error: `Font validation failed: ${validationResult.error}` 
+                            }));
+                            return;
+                        }
+                        
+                        console.log(`Font validation passed: ${filename} (${validationResult.type})`);
+                        
+                        // Save the validated font file
                         const filePath = path.join(fontService.uploadsDir, filename);
                         fs.writeFileSync(filePath, fileContent, 'binary');
                         
                         // Save metadata if provided
                         if (metadata) {
+                            // Add validation info to metadata
+                            metadata.validationType = validationResult.type;
+                            metadata.validatedAt = new Date().toISOString();
                             fontService.saveFont(filename, metadata);
                         }
                         
@@ -268,14 +335,15 @@ const server = http.createServer((req, res) => {
                             name: metadata?.familyName || filename.replace(/\.(ttf|otf)$/i, ''),
                             filename: filename,
                             path: `/uploads/fonts/${filename}`,
-                            metadata: metadata || {}
+                            metadata: metadata || {},
+                            validationType: validationResult.type
                         };
                         
                         res.writeHead(200, { 'Content-Type': 'application/json' });
                         res.end(JSON.stringify(font));
                     } else {
                         res.writeHead(400, { 'Content-Type': 'application/json' });
-                        res.end(JSON.stringify({ error: 'Invalid file upload' }));
+                        res.end(JSON.stringify({ error: 'Invalid file upload - missing file or filename' }));
                     }
                 } catch (error) {
                     console.error('Upload error:', error);

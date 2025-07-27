@@ -33,23 +33,6 @@
     "fileSize": 153944,
     "lastModified": 1745443774000
   },
-  "Ubuntu-Regular.ttf": {
-    "familyName": "Ubuntu",
-    "fullName": "Ubuntu Regular",
-    "subfamilyName": "Regular",
-    "postscriptName": "Unknown",
-    "designer": "Dalton Maag Ltd",
-    "version": "0.83",
-    "manufacturer": "Dalton Maag Ltd",
-    "copyright": "Copyright 2011 Canonical Ltd.  Licensed under the Ubuntu Font Licence 1.0",
-    "unitsPerEm": 1000,
-    "ascender": 932,
-    "descender": -189,
-    "numGlyphs": 1262,
-    "filename": "Ubuntu-Regular.ttf",
-    "fileSize": 299684,
-    "lastModified": 1748591472000
-  },
   "Lato-Regular.ttf": {
     "familyName": "Lato",
     "fullName": "Lato Regular",
@@ -65,23 +48,6 @@
     "numGlyphs": 275,
     "filename": "Lato-Regular.ttf",
     "fileSize": 75152,
-    "lastModified": 1748591472000
-  },
-  "Barlow-BoldItalic.ttf": {
-    "familyName": "Barlow",
-    "fullName": "Barlow Bold Italic",
-    "subfamilyName": "Bold Italic",
-    "postscriptName": "Unknown",
-    "designer": "Jeremy Tribby",
-    "version": "Version 1.408",
-    "manufacturer": "Tribby Type",
-    "copyright": "Copyright 2017 The Barlow Project Authors (https://github.com/jpt/barlow)",
-    "unitsPerEm": 1000,
-    "ascender": 1000,
-    "descender": -200,
-    "numGlyphs": 680,
-    "filename": "Barlow-BoldItalic.ttf",
-    "fileSize": 106540,
     "lastModified": 1748591472000
   },
   "PlayfairDisplay-Regular.ttf": {
@@ -151,5 +117,43 @@
     "filename": "Oswald-VariableFont_wght.ttf",
     "fileSize": 169108,
     "lastModified": 1748538204000
+  },
+  "Barlow-BlackItalic.ttf": {
+    "familyName": "Barlow Black",
+    "fullName": "Barlow Black Italic",
+    "subfamilyName": "Italic",
+    "postscriptName": "Unknown",
+    "designer": "Jeremy Tribby",
+    "version": "Version 1.408",
+    "manufacturer": "Tribby Type",
+    "copyright": "Copyright 2017 The Barlow Project Authors (https://github.com/jpt/barlow)",
+    "unitsPerEm": 1000,
+    "ascender": 1000,
+    "descender": -200,
+    "numGlyphs": 680,
+    "filename": "Barlow-BlackItalic.ttf",
+    "fileSize": 109224,
+    "lastModified": 1748591472000,
+    "validationType": "TTF",
+    "validatedAt": "2025-07-27T15:24:29.503Z"
+  },
+  "Ubuntu-Regular.ttf": {
+    "familyName": "Ubuntu",
+    "fullName": "Ubuntu Regular",
+    "subfamilyName": "Regular",
+    "postscriptName": "Unknown",
+    "designer": "Dalton Maag Ltd",
+    "version": "0.83",
+    "manufacturer": "Dalton Maag Ltd",
+    "copyright": "Copyright 2011 Canonical Ltd.  Licensed under the Ubuntu Font Licence 1.0",
+    "unitsPerEm": 1000,
+    "ascender": 932,
+    "descender": -189,
+    "numGlyphs": 1262,
+    "filename": "Ubuntu-Regular.ttf",
+    "fileSize": 299684,
+    "lastModified": 1748591472000,
+    "validationType": "TTF",
+    "validatedAt": "2025-07-27T15:25:41.130Z"
   }
 }
