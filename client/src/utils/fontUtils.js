@@ -10,10 +10,6 @@ export const extractFontMetadata = async (file) => {
     const arrayBuffer = await file.arrayBuffer();
     const font = opentype.parse(arrayBuffer);
     
-    // Debug: Log the font object structure
-    console.log('Font object:', font);
-    console.log('Font names:', font.names);
-    
     // Helper function to get name from different possible formats
     const getName = (nameObj) => {
       if (!nameObj) return 'Unknown';
@@ -63,8 +59,6 @@ export const extractFontMetadata = async (file) => {
       fileSize: file.size,
       lastModified: file.lastModified
     };
-
-    console.log('Extracted metadata:', metadata);
     return metadata;
   } catch (error) {
     console.error('Error parsing font file:', error);

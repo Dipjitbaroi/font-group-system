@@ -316,8 +316,6 @@ const server = http.createServer((req, res) => {
                             return;
                         }
                         
-                        console.log(`Font validation passed: ${filename} (${validationResult.type})`);
-                        
                         // Save the validated font file
                         const filePath = path.join(fontService.uploadsDir, filename);
                         fs.writeFileSync(filePath, fileContent, 'binary');

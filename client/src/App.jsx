@@ -39,7 +39,6 @@ function App() {
       
 
       if (loadedFonts.includes(fontFamily)) return null;
-      console.log("Font----:", `url(http://localhost:5000${font.path})`);
       try {
         const fontFace = new FontFace(fontFamily, `url(http://localhost:5000${font.path})`);
         await fontFace.load();
@@ -52,9 +51,7 @@ function App() {
     });
 
     const loaded = await Promise.all(fontPromises);
-    console.log("Loaded Fonts:", loaded);
     const newlyLoaded = loaded.filter(Boolean).filter(name => !loadedFonts.includes(name));
-    console.log("Newly Loaded Fonts:", newlyLoaded);
     if (newlyLoaded.length > 0) {
       setLoadedFonts((prev) => [...prev, ...newlyLoaded]);
     }
