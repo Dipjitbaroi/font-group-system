@@ -1,10 +1,9 @@
 import React, { useState } from "react";
-import { getFontDisplayName, formatFileSize } from '../utils/fontUtils';
+import { getFontDisplayName } from '../utils/fontUtils';
 
 // Responsible for rendering the uploaded fonts and handling preview/deletion
 const FontList = ({ fonts, onDeleteFont, loadedFonts }) => {
   const [deletingFont, setDeletingFont] = useState(null);
-  const [expandedFont, setExpandedFont] = useState(null);
 
   const handleDelete = async (font) => {
     try {
@@ -15,30 +14,6 @@ const FontList = ({ fonts, onDeleteFont, loadedFonts }) => {
     } finally {
       setDeletingFont(null);
     }
-  };
-
-  const toggleExpanded = (fontId) => {
-    setExpandedFont(expandedFont === fontId ? null : fontId);
-  };
-
-  // Renders individual font preview
-  const FontPreview = ({ font }) => {
-    const fontFamily = font.cssFontName || font.name.replace(/\s+/g, "");
-    const isLoaded = loadedFonts.includes(fontFamily);
-
-    return (
-      <div className="space-y-2">
-        <div
-          className="text-lg text-gray-800"
-          style={{
-            fontFamily: isLoaded ? fontFamily : "inherit",
-            fontStyle: isLoaded ? "normal" : "italic",
-          }}
-        >
-          {isLoaded ? "Example Style" : "Loading font..."}
-        </div>
-      </div>
-    );
   };
 
   if (fonts.length === 0) {
@@ -78,51 +53,71 @@ const FontList = ({ fonts, onDeleteFont, loadedFonts }) => {
         Browse a list of Zepto fonts to build your font group.
       </p>
 
-      <div className="space-y-4">
-        {fonts.map((font) => {
-          const displayName = getFontDisplayName(font);
-          const isExpanded = expandedFont === font.id;
-          
-          return (
-            <div
-              key={font.id}
-              className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow duration-150"
-            >
-              {/* Font Header */}
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex-1">
-                  <h3 className="text-xl font-semibold text-gray-900 mb-1">
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-gray-200">
+              <th className="text-left py-3 px-4 font-semibold text-gray-700 uppercase tracking-wider text-sm">
+                Font Name
+              </th>
+              <th className="text-left py-3 px-4 font-semibold text-gray-700 uppercase tracking-wider text-sm">
+                Preview
+              </th>
+              <th className="text-right py-3 px-4 font-semibold text-gray-700 uppercase tracking-wider text-sm">
+                Action
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {fonts.map((font) => {
+              const displayName = getFontDisplayName(font);
+              const fontFamily = font.cssFontName || font.name.replace(/\s+/g, "");
+              const isLoaded = loadedFonts.includes(fontFamily);
+              
+              return (
+                <tr
+                  key={font.id}
+                  className="hover:bg-gray-50 transition-colors duration-150"
+                >
+                  <td className="py-4 px-4 text-gray-800 font-medium">
                     {displayName}
-                  </h3>
-                </div>
-                {/* Font Preview */}
-              <div className="mb-4">
-                <FontPreview font={font} />
-              </div>
-                <div className="flex items-center space-x-3">
-                  <button
-                    onClick={() => handleDelete(font)}
-                    disabled={deletingFont === font.filename}
-                    className={`text-red-600 hover:text-red-800 font-medium transition-colors duration-150 ${
-                      deletingFont === font.filename
-                        ? "opacity-50 cursor-not-allowed"
-                        : "hover:underline"
-                    }`}
-                  >
-                    {deletingFont === font.filename ? (
-                      <div className="flex items-center space-x-2">
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
-                        <span>Deleting...</span>
-                      </div>
-                    ) : (
-                      "Delete"
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-          );
-        })}
+                  </td>
+                  <td className="py-4 px-4">
+                    <span
+                      className="text-gray-600"
+                      style={{
+                        fontFamily: isLoaded ? fontFamily : "inherit",
+                        fontStyle: isLoaded ? "normal" : "italic",
+                      }}
+                    >
+                      {isLoaded ? "Example Style" : "Loading..."}
+                    </span>
+                  </td>
+                  <td className="py-4 px-4 text-right">
+                    <button
+                      onClick={() => handleDelete(font)}
+                      disabled={deletingFont === font.filename}
+                      className={`text-red-600 hover:text-red-800 font-medium transition-colors duration-150 ${
+                        deletingFont === font.filename
+                          ? "opacity-50 cursor-not-allowed"
+                          : "hover:underline"
+                      }`}
+                    >
+                      {deletingFont === font.filename ? (
+                        <div className="flex items-center space-x-2">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
+                          <span>Deleting...</span>
+                        </div>
+                      ) : (
+                        "Delete"
+                      )}
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   );
